@@ -269,9 +269,8 @@ static struct termios restore;
 
 color_t*
 create_color(uint16_t r, uint16_t g, uint16_t b){
-	color_t* c = (color_t*) malloc(sizeof(color_t));
+	color_t* c = (color_t*) mmap(NULL, sizeof(color_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
     if(c == NULL){
-        perror("Failed to allocate memory for color\n");
         return NULL;
     }
 
@@ -285,16 +284,12 @@ create_color(uint16_t r, uint16_t g, uint16_t b){
 int
 get_screen_size(int fd){
     if (ioctl(fd, FBIOGET_FSCREENINFO, &finfo) == -1) {
-        perror("Error reading fixed information");
         exit(2);
     }
 
     if (ioctl(fd, FBIOGET_VSCREENINFO, &vinfo) == -1) {
-        perror("Error reading variable information");
         exit(3);
     }
-
-    /* printf("%dx%d, %dbpp\n", vinfo.xres, vinfo.yres, vinfo.bits_per_pixel); */
 
     size = vinfo.xres * vinfo.yres * vinfo.bits_per_pixel / 8;
 }
@@ -316,12 +311,9 @@ void
 init_graphics(){
 	fd = open("/dev/fb0", O_RDWR);
 	if(fd == -1){
-		perror("FAILED TO OPEN DEVICE");
 		return -1;
 	}
 	
-	printf("/dev/fb0 is open.\n");
-
 	/* Get screen dimensions */
 	get_screen_size(fd);
 	
@@ -365,7 +357,7 @@ get_key(){
 	retval = select(1, &rfds, NULL, NULL, NULL);
 	
 	if(retval == -1){
-		perror("select failed\n");
+        // select failed
 	} else if (retval){
 		read(fileno(stdin), &ch, 1);
 	}
@@ -386,10 +378,8 @@ void*
 new_offscreen_buffer(){
 	char* buf = mmap(NULL, 	size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 	if(buf == NULL){
-		perror("FAILED TO ALLOCATE MEMORY FOR BUFFER\n");
 		return NULL;
-	}
-		
+    }	
 	return buf;
 }
 
@@ -403,8 +393,6 @@ blit(void* src){
 		for(i = 0; i < size; i++){
 			data[i] = buf[i];
 		}
-	}else{
-		perror("blit FAILED: Buffer is NULL\n");
 	}
 }
 
@@ -476,7 +464,14 @@ draw_let(char* buff, int x, int y, char ch, color_t c){
 void
 draw_text(void* img, int x, int y, const char* text, color_t c){
     char* buff = (char*) img;
-    int len = strlen(text);
+
+    int l;
+    int len = 0;
+
+    /* Get the length of our text */
+    for(l = 0; text[l] != '\0'; l++){
+        len++; 
+    }
 
     int i;
     int j = 0;
